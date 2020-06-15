@@ -15,30 +15,56 @@ int compareKeyAction(const void *a, const void *b)
     return -strcmp(((KeyAction *)a)->key, ((KeyAction *)b)->key);
 }
 
+void addIndentation(FILE *out_file, size_t n)
+{
+    for (size_t i = 0; i < n; i++)
+    {
+        fprintf(out_file, "\t");
+    }
+}
+
+void fputs_indent(FILE *out_file, char *string, size_t n)
+{
+    do
+    {
+        addIndentation(out_file, n);
+        do
+        {
+            fputc(*string, out_file);
+        } while (*(string++) != '\n' && *string);
+    } while (*string);
+}
+
 void recursivelyCompileTrie(FILE *out_file, KeyAction *array, size_t length, size_t word_offset)
 {
-    fprintf(out_file, "switch *c {\n");
+    addIndentation(out_file, word_offset);
+    fprintf(out_file, "switch (*c) {\n");
     for (size_t i = 0; i < length; )
     {
         size_t j;
         for (j = i; j < length && (array[i].key[word_offset] == array[j].key[word_offset]); j++);
         if (array[i].key[word_offset])
-        {
+        {   
+            addIndentation(out_file, word_offset);
             fprintf(out_file, "case \'%c\':\n", array[i].key[word_offset]);
+            addIndentation(out_file, word_offset + 1);
             fprintf(out_file, "c++;\n");
             recursivelyCompileTrie(out_file, &array[i], j - i, word_offset + 1);
             i = j;
+            addIndentation(out_file, word_offset);
             fprintf(out_file, "break;\n");
         }
         else
         {
+            addIndentation(out_file, word_offset);
             fprintf(out_file, "case \'\\0\':\n");
-            fprintf(out_file, "%s", array[i].action);
+            fputs_indent(out_file, array[i].action, word_offset + 1);
+            addIndentation(out_file, word_offset + 1);
             fprintf(out_file, "break;\n");
             i++;
         }
     }
-    fprintf(out_file, "default: \nreturn 0;\n}\n");
+    fputs_indent(out_file, "default: \nreturn 0;\n}\n", word_offset);
     return;
 }
 
@@ -182,7 +208,9 @@ int main(int argc, char **argv)
     {
         printf("%s, %s\n", pairs[i].key, pairs[i].action);
     }
+    fprintf(output_file, "int generated%sCompare(char* c) { \n", argv[1]);
     recursivelyCompileTrie(output_file, pairs, number_of_keys, 0);
+    fprintf(output_file, "}\n");
 }
 
 
