@@ -12,7 +12,7 @@ typedef struct KeyAction
 
 int compareKeyAction(const void *a, const void *b)
 {
-    return -strcmp(((KeyAction *)a)->key, ((KeyAction *)b)->key);
+    return strcmp(((KeyAction *)a)->key, ((KeyAction *)b)->key);
 }
 
 void addIndentation(FILE *out_file, size_t n)
@@ -35,6 +35,7 @@ void fputs_indent(FILE *out_file, char *string, size_t n)
     } while (*string);
 }
 
+// array should be sorted before this function is called for the first time
 void recursivelyCompileTrie(FILE *out_file, KeyAction *array, size_t length, size_t word_offset)
 {
     addIndentation(out_file, word_offset);
@@ -42,11 +43,19 @@ void recursivelyCompileTrie(FILE *out_file, KeyAction *array, size_t length, siz
     for (size_t i = 0; i < length; )
     {
         size_t j;
+        // increment j untill we hit a different word_offset(th) letter
         for (j = i; j < length && (array[i].key[word_offset] == array[j].key[word_offset]); j++);
         if (array[i].key[word_offset])
         {   
             addIndentation(out_file, word_offset);
-            fprintf(out_file, "case \'%c\':\n", array[i].key[word_offset]);
+            if (array[i].key[word_offset] == '\'' || array[i].key[word_offset] == '\"' || array[i].key[word_offset] == '\\')
+            {
+                fprintf(out_file, "case \'\\%c\':\n", array[i].key[word_offset]);
+            }
+            else
+            {
+                fprintf(out_file, "case \'%c\':\n", array[i].key[word_offset]);
+            }
             addIndentation(out_file, word_offset + 1);
             fprintf(out_file, "c++;\n");
             recursivelyCompileTrie(out_file, &array[i], j - i, word_offset + 1);
@@ -82,7 +91,6 @@ int main(int argc, char **argv)
     int is_quoted = 0;
     int is_escaped = 0;
     size_t number_of_keys = 0;
-    size_t buffer_size = 0;
     int brackets_depth = 0;
     int base_brackets_depth = 0;
 
@@ -96,11 +104,13 @@ int main(int argc, char **argv)
     fclose(input_file);
     char *current_char = file_buffer;
     file_buffer[input_file_size - 1] = EOF;
+    int deletion_count = 0; // we do not want the backslash escape character in the output
     do
     {
         // brackets have the highest precedence
         if (brackets_depth > 0)
         {
+            deletion_count = 0;
             switch (*current_char)
             {
                 case '{':
@@ -116,36 +126,38 @@ int main(int argc, char **argv)
                 default:
                     break;
             }
-            buffer_size++;
         }
         else if (is_quoted)
         {
+            char temp_char = *current_char;
+            *current_char = '\0';
+            *(current_char - deletion_count) = temp_char;
+
             if (is_escaped)
             {
-                buffer_size++;
                 is_escaped = 0;
             }
             else
             {
-                switch (*current_char)
+                switch (*(current_char - deletion_count))
                 {
                     case '\\':
                         is_escaped = 1;
+                        deletion_count++;
                         break;
                     case '\"':
-                        *current_char = '\0';
-                        buffer_size++;
+                        *(current_char - deletion_count) = '\0';
                         number_of_keys++;
                         is_quoted = 0;
                         break;
                     default:
-                        buffer_size++;
                         break;
                 }
             }
         }
         else
         {
+            deletion_count = 0;
             switch (*current_char)
             {
                 case '{':
@@ -192,10 +204,15 @@ int main(int argc, char **argv)
                     printf("An action must be preceded by a key %s\n", current_char);
                     exit(EXIT_FAILURE);
                 }
+                if (*current_char == '\n')
+                {
+                    memmove(current_char, current_char + 1, strlen(current_char));
+                }
                 last_type = TYPE_ACTION;
                 pairs[key_index].action = current_char;
                 key_index++;
                 current_char += strlen(current_char) + 1;
+                *(current_char - 1) = '\0';
                 break;
             default:
                 current_char++;
@@ -212,5 +229,3 @@ int main(int argc, char **argv)
     recursivelyCompileTrie(output_file, pairs, number_of_keys, 0);
     fprintf(output_file, "}\n");
 }
-
-
