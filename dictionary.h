@@ -78289,6 +78289,7 @@ case 'g':
 											c++;
 											switch (*c) {
 											case '\0':
+												puts("Looks like you found my little secret");
 												return -1;
 												break;
 											default: 

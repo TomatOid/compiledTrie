@@ -1,4 +1,5 @@
 "god is dead" {
+puts("Looks like you found my little secret");
 return -1;
 }
 "\\b"
